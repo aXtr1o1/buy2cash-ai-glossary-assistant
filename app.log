@@ -1,0 +1,70 @@
+2025-07-28 17:27:52,322 - main - INFO - Buy2Cash Grocery AI Assistant started successfully
+2025-07-28 17:28:24,859 - app.api - INFO - POST /generate endpoint called for user: user0003
+2025-07-28 17:28:24,859 - app.core - INFO - Generating ingredients for query: 'I want to cook pizza...'
+2025-07-28 17:28:27,928 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-07-28 17:28:28,184 - app.core - INFO - Successfully generated 4 categories
+2025-07-28 17:28:28,184 - app.api - INFO - Successfully generated ingredients for user: user0003
+2025-07-28 17:28:45,739 - app.api - INFO - POST /match endpoint called for user: user0003
+2025-07-28 17:28:45,741 - app.matcher - INFO - Starting product matching for 4 categories
+2025-07-28 17:28:45,741 - app.matcher - INFO - Loading products from JSON file
+2025-07-28 17:28:46,101 - app.matcher - INFO - Successfully loaded 5610 products in 14 categories
+2025-07-28 17:28:46,117 - app.matcher - INFO - Processing category: 'Diary & Breads' (ID: 67fe424f0b3530065e719240)
+2025-07-28 17:28:47,981 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-07-28 17:28:47,981 - app.matcher - INFO -   Auto-approved: Britanniatannia Cheese Slice 100G (ProductID: 68286d4b71cc0185be0fb747)
+2025-07-28 17:28:47,981 - app.matcher - INFO -   Auto-approved: Amul Cheese 200G (ProductID: 68286d4b71cc0185be0fb74b)
+2025-07-28 17:28:47,981 - app.matcher - INFO -   Auto-approved: Amul Cheese200G (ProductID: 68286d4b71cc0185be0fb755)
+2025-07-28 17:28:47,981 - app.matcher - INFO -   LLM validated: Britannia Chse Slice 200G (ProductID: 68286d4b71cc0185be0fb753)
+2025-07-28 17:28:47,981 - app.matcher - INFO - SUCCESS: Category 'Diary & Breads' -> 4 products
+2025-07-28 17:28:47,988 - app.matcher - INFO - Processing category: 'Fresh Veggies' (ID: 67fe42260b3530065e719177)
+2025-07-28 17:28:49,016 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-07-28 17:28:49,016 - app.matcher - INFO -   LLM validated: Multi veggies (ProductID: 6808cd831c3c6c3ec9f4066d)
+2025-07-28 17:28:49,016 - app.matcher - INFO - SUCCESS: Category 'Fresh Veggies' -> 1 products
+2025-07-28 17:28:49,016 - app.matcher - INFO - Processing category: 'Masalas' (ID: 67fe4c510b3530065e71c5ff)
+2025-07-28 17:28:50,513 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-07-28 17:28:50,513 - app.matcher - INFO -   LLM validated: Everest Pizza Spice Mix 50G (ProductID: 68284dc371cc0185be0f2d4f)
+2025-07-28 17:28:50,513 - app.matcher - INFO -   Auto-approved: Everest Oregano 50G (ProductID: 68284dc371cc0185be0f2d49)
+2025-07-28 17:28:50,513 - app.matcher - INFO - SUCCESS: Category 'Masalas' -> 2 products
+2025-07-28 17:28:50,513 - app.matcher - INFO - Processing category: 'Oil & Ghee' (ID: 67fe4a980b3530065e71be55)
+2025-07-28 17:28:51,312 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-07-28 17:28:51,312 - app.matcher - INFO -   LLM validated: Guna Illupai Oils 100 Ml (ProductID: 68286d4b71cc0185be0fb867)
+2025-07-28 17:28:51,316 - app.matcher - INFO - SUCCESS: Category 'Oil & Ghee' -> 1 products
+2025-07-28 17:28:51,316 - app.matcher - INFO - FINAL RESULT: 4 categories with matches
+2025-07-28 17:28:51,324 - app.matcher - INFO - Matching products for Redis storage (using MongoDB _id as ProductID)
+2025-07-28 17:28:51,324 - app.matcher - INFO - Starting product matching for 4 categories
+2025-07-28 17:28:51,324 - app.matcher - INFO - Loading products from JSON file
+2025-07-28 17:28:51,581 - app.matcher - INFO - Successfully loaded 5610 products in 14 categories
+2025-07-28 17:28:51,610 - app.matcher - INFO - Processing category: 'Diary & Breads' (ID: 67fe424f0b3530065e719240)
+2025-07-28 17:28:51,611 - app.matcher - INFO -   Auto-approved: Britanniatannia Cheese Slice 100G (ProductID: 68286d4b71cc0185be0fb747)
+2025-07-28 17:28:51,613 - app.matcher - INFO -   Auto-approved: Amul Cheese 200G (ProductID: 68286d4b71cc0185be0fb74b)
+2025-07-28 17:28:51,614 - app.matcher - INFO -   Auto-approved: Amul Cheese200G (ProductID: 68286d4b71cc0185be0fb755)
+2025-07-28 17:28:51,615 - app.matcher - INFO -   LLM validated: Britannia Chse Slice 200G (ProductID: 68286d4b71cc0185be0fb753)
+2025-07-28 17:28:51,615 - app.matcher - INFO - SUCCESS: Category 'Diary & Breads' -> 4 products
+2025-07-28 17:28:51,616 - app.matcher - INFO - Processing category: 'Fresh Veggies' (ID: 67fe42260b3530065e719177)
+2025-07-28 17:28:51,616 - app.matcher - INFO -   LLM validated: Multi veggies (ProductID: 6808cd831c3c6c3ec9f4066d)
+2025-07-28 17:28:51,617 - app.matcher - INFO - SUCCESS: Category 'Fresh Veggies' -> 1 products
+2025-07-28 17:28:51,617 - app.matcher - INFO - Processing category: 'Masalas' (ID: 67fe4c510b3530065e71c5ff)
+2025-07-28 17:28:51,625 - app.matcher - INFO -   LLM validated: Everest Pizza Spice Mix 50G (ProductID: 68284dc371cc0185be0f2d4f)
+2025-07-28 17:28:51,626 - app.matcher - INFO -   Auto-approved: Everest Oregano 50G (ProductID: 68284dc371cc0185be0f2d49)
+2025-07-28 17:28:51,627 - app.matcher - INFO - SUCCESS: Category 'Masalas' -> 2 products
+2025-07-28 17:28:51,627 - app.matcher - INFO - Processing category: 'Oil & Ghee' (ID: 67fe4a980b3530065e71be55)
+2025-07-28 17:28:51,631 - app.matcher - INFO -   LLM validated: Guna Illupai Oils 100 Ml (ProductID: 68286d4b71cc0185be0fb867)
+2025-07-28 17:28:51,632 - app.matcher - INFO - SUCCESS: Category 'Oil & Ghee' -> 1 products
+2025-07-28 17:28:51,634 - app.matcher - INFO - FINAL RESULT: 4 categories with matches
+2025-07-28 17:28:51,646 - app.api - INFO - Generating metadata for Redis storage...
+2025-07-28 17:28:51,647 - app.core - INFO - Inferring metadata for query: 'I want to cook pizza...'
+2025-07-28 17:28:53,712 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-07-28 17:28:53,712 - app.core - INFO - Successfully inferred metadata: {'dishbased': ['pizza'], 'cuisinebased': ['italian'], 'dietarypreferences': [], 'timebased': ['dinner']}
+2025-07-28 17:28:53,712 - app.api - INFO - Generated metadata: {'dishbased': ['pizza'], 'cuisinebased': ['italian'], 'dietarypreferences': [], 'timebased': ['dinner']}
+2025-07-28 17:28:53,712 - app.api - INFO - Saving to Redis: timestamp=2025-07-28T17:28:28.184749, metadata keys present: ['dishbased', 'cuisinebased', 'dietarypreferences', 'timebased']
+2025-07-28 17:28:53,712 - app.redis_cache - INFO - Saving data to Redis for user: user0003
+2025-07-28 17:28:54,257 - app.redis_cache - INFO - Successfully saved data to Redis for user: user0003
+2025-07-28 17:28:54,257 - app.api - INFO - Successfully matched products for user: user0003
+2025-07-28 17:29:23,258 - app.api - INFO - GET /queries/user0003 endpoint called
+2025-07-28 17:29:23,258 - app.redis_cache - INFO - Retrieving queries from Redis for user: user0003
+2025-07-28 17:29:24,114 - app.redis_cache - INFO - Successfully retrieved 1 queries for user: user0003
+2025-07-28 17:29:24,116 - app.api - INFO - Returning 1 queries for user: user0003
+2025-07-28 17:30:02,087 - main - INFO - Buy2Cash Grocery AI Assistant shutting down
+2025-07-28 17:30:20,133 - main - INFO - Buy2Cash Grocery AI Assistant started successfully
+2025-07-28 17:30:20,133 - main - INFO - Buy2Cash Grocery AI Assistant shutting down
+2025-07-28 17:30:37,498 - main - INFO - Buy2Cash Grocery AI Assistant started successfully
+2025-07-28 17:31:34,908 - main - INFO - Buy2Cash Grocery AI Assistant shutting down

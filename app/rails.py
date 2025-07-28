@@ -63,8 +63,7 @@ class ValidationRails:
         
         if len(user_id) > cls.MAX_USER_ID_LENGTH:
             return False, f"User ID too long (max {cls.MAX_USER_ID_LENGTH} characters)"
-        
-        # Basic alphanumeric validation
+
         if not re.match(r'^[a-zA-Z0-9_-]+$', user_id):
             return False, "User ID can only contain letters, numbers, hyphens, and underscores"
         
@@ -95,8 +94,7 @@ class ValidationRails:
             
             if len(items) > cls.MAX_ITEMS_PER_CATEGORY:
                 return False, f"Category {i} has too many items (max {cls.MAX_ITEMS_PER_CATEGORY})"
-            
-            # Validate individual items
+
             for j, item in enumerate(items):
                 if not isinstance(item, str) or not item.strip():
                     return False, f"Category {i}, item {j} must be a non-empty string"
@@ -107,16 +105,14 @@ class ValidationRails:
     def sanitize_llm_response(cls, response: Dict[str, Any]) -> Dict[str, Any]:
         """Sanitize LLM response to ensure data quality"""
         sanitized = {}
-        
-        # Handle categories
+ 
         categories = response.get("categories", [])
         if isinstance(categories, list):
             sanitized_categories = []
-            for cat_entry in categories[:cls.MAX_CATEGORIES_PER_QUERY]:  # Limit categories
+            for cat_entry in categories[:cls.MAX_CATEGORIES_PER_QUERY]: 
                 if isinstance(cat_entry, dict) and "category" in cat_entry and "items" in cat_entry:
                     items = cat_entry["items"]
                     if isinstance(items, list):
-                        # Clean and limit items
                         clean_items = []
                         for item in items[:cls.MAX_ITEMS_PER_CATEGORY]:
                             if isinstance(item, str) and item.strip():
@@ -130,16 +126,14 @@ class ValidationRails:
             
             sanitized["categories"] = sanitized_categories
         
-        # Handle metadata arrays
         for field in ["dishbased", "cuisinebased", "dietarypreferences", "timebased"]:
             value = response.get(field, [])
             if isinstance(value, list):
-                # Clean and limit metadata
                 clean_values = []
                 for v in value[:5]:  # Limit to 5 items per metadata field
                     if isinstance(v, str) and v.strip():
                         clean_v = v.strip().lower()[:50]  # Limit length and normalize
-                        if re.match(r'^[a-zA-Z0-9\s_-]+$', clean_v):  # Only alphanumeric
+                        if re.match(r'^[a-zA-Z0-9\s_-]+$', clean_v):
                             clean_values.append(clean_v)
                 
                 sanitized[field] = clean_values
@@ -148,5 +142,4 @@ class ValidationRails:
         
         return sanitized
 
-# Global instance for easy access
 validation_rails = ValidationRails()

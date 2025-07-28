@@ -59,29 +59,18 @@ async def match_products(request: MatchRequest):
     logger.debug(f"Matching {len(request.categories)} categories")
     
     try:
-        # Convert to dict for processing
         categories_dict = [cat.dict() for cat in request.categories]
-        
-        # Get product matches (public version)
         matched_results = match_products_with_ingredients(categories_dict)
-        
-        # Get version with internal IDs for Redis storage
         matched_results_with_ids = match_products_with_ingredients_for_redis(categories_dict)
-        
-        # Generate metadata with better error handling
         logger.info("Generating metadata for Redis storage...")
         metadata = assistant.infer_metadata(request.query)
         logger.info(f"Generated metadata: {metadata}")
-        
-        # Use proper timestamp - either from request or current time
         current_timestamp = request.timestamp if hasattr(request, 'timestamp') and request.timestamp else datetime.now().isoformat()
-        
-        # Save to Redis with product results and proper timestamp
         redis_data = {
             "user_id": request.user_id,
             "query": request.query,
-            "timestamp": current_timestamp,  # FIXED: Use proper timestamp
-            "product_mapping_results": matched_results_with_ids,  # FIXED: Use version with product IDs
+            "timestamp": current_timestamp,  
+            "product_mapping_results": matched_results_with_ids,  
             "dishbased": metadata.get("dishbased", []),
             "cuisinebased": metadata.get("cuisinebased", []),
             "dietarypreferences": metadata.get("dietarypreferences", []),
@@ -92,7 +81,7 @@ async def match_products(request: MatchRequest):
         save_to_redis(request.user_id, redis_data)
         
         logger.info(f"Successfully matched products for user: {request.user_id}")
-        return matched_results  # Return public version without product IDs
+        return matched_results 
         
     except Exception as e:
         logger.error(f"Error in match_products: {e}")

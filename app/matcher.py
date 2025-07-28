@@ -84,18 +84,22 @@ def batch_llm_semantic_check(item_product_pairs, query_context=None):
     return results
 
 def load_products():
-    """Load products from JSON file"""
+    """Load products from JSON file using MongoDB _id as ProductID"""
     logger.info("Loading products from JSON file")
     try:
         with open("asset/products.json", "r", encoding="utf-8") as f:
             raw_products = json.load(f)
+        
         products = []
         category_counts = {}
+        
         for i, product in enumerate(raw_products):
             raw_category_id = product.get("category")
             category_id = get_oid(raw_category_id)
+            mongo_id = normalize_mongo_id(product.get("_id"))
             normalized_product = {
-                "_id": normalize_mongo_id(product.get("_id")),
+                "_id": mongo_id, 
+                "ProductID": mongo_id, 
                 "ProductName": product.get("ProductName", "").strip(),
                 "image": product.get("image", []),
                 "category": category_id,
@@ -105,8 +109,11 @@ def load_products():
             }
             products.append(normalized_product)
             category_counts[category_id] = category_counts.get(category_id, 0) + 1
+            
             if i < 3:
-                logger.debug(f"Sample Product {i+1}: '{product.get('ProductName', '')[:50]}'")
+                oid_str = get_oid(mongo_id)
+                logger.debug(f"Sample Product {i+1}: '{product.get('ProductName', '')[:50]}' (ProductID: {oid_str})")
+        
         logger.info(f"Successfully loaded {len(products)} products in {len(category_counts)} categories")
         return products
     except Exception as e:
@@ -114,11 +121,12 @@ def load_products():
         return []
 
 def match_products_with_ingredients(categories, query_context=None):
-    """Match ingredients to products with optimized LLM batching."""
+    """Match ingredients to products using MongoDB _id as ProductID."""
     logger.info(f"Starting product matching for {len(categories)} categories")
     products_data = load_products()
     if not products_data:
         return []
+    
     product_categories = {}
     for product in products_data:
         cat_id = product["category"]
@@ -151,14 +159,17 @@ def match_products_with_ingredients(categories, query_context=None):
             
             category_products = product_categories[cat_id]
             all_candidates = [] 
+            
             for item in items:
                 item_clean = item.strip().lower()
                 item_matches = []
+                
                 for product in category_products:
                     product_name = product["ProductName"].lower().strip()
                     if item_clean in product_name:
                         item_matches.append((product, 100, "direct"))
                         continue
+                    
                     item_words = [w for w in item_clean.split() if len(w) > 2]
                     if item_words:
                         product_words = product_name.split()
@@ -166,6 +177,7 @@ def match_products_with_ingredients(categories, query_context=None):
                         if word_matches > 0:
                             score = (word_matches / len(item_words)) * 80
                             item_matches.append((product, score, "word"))
+                
                 if len(item_matches) < 2:
                     try:
                         product_names = [p["ProductName"].lower().strip() for p in category_products]
@@ -179,6 +191,7 @@ def match_products_with_ingredients(categories, query_context=None):
                                         item_matches.append((product, score, "fuzzy"))
                     except Exception:
                         pass
+                
                 if item_matches:
                     unique_matches = {}
                     for product, score, method in item_matches:
@@ -188,34 +201,36 @@ def match_products_with_ingredients(categories, query_context=None):
                     
                     sorted_matches = sorted(unique_matches.values(), key=lambda x: x[1], reverse=True)
                     
-                    # Add to batch candidates (only top 2 to reduce LLM calls)
                     for product, score, method in sorted_matches[:5]:
                         if score >= 95 and method == "direct":
                             all_candidates.append((item, product, score, method, True))  
                         else:
                             all_candidates.append((item, product, score, method, False)) 
             
-            # BATCH LLM VALIDATION
+  
             llm_pairs = [(item, product["ProductName"]) for item, product, score, method, auto_approve in all_candidates if not auto_approve]
             llm_results = batch_llm_semantic_check(llm_pairs, query_context) if llm_pairs else {}
             
-            # COLLECT FINAL RESULTS
             matched_products = []
+            seen_product_ids = set()  
             for item, product, score, method, auto_approve in all_candidates:
                 is_valid = auto_approve or llm_results.get((item, product["ProductName"]), False)
                 
-                if is_valid:
+                product_id_key = get_oid(product["ProductID"])  
+                
+                if is_valid and product_id_key not in seen_product_ids:
                     public_product = {
+                        "ProductID": product["ProductID"],  
                         "ProductName": product["ProductName"],
                         "image": product["image"],
                         "mrpPrice": product["mrpPrice"],
                         "offerPrice": product["offerPrice"],
                         "quantity": 1
                     }
-                    if public_product not in matched_products:
-                        matched_products.append(public_product)
-                        status = "Auto-approved" if auto_approve else "LLM validated"
-                        logger.info(f"  {status}: {product['ProductName']} (score: {score})")
+                    matched_products.append(public_product)
+                    seen_product_ids.add(product_id_key)
+                    status = "Auto-approved" if auto_approve else "LLM validated"
+                    logger.info(f"  {status}: {product['ProductName']} (ProductID: {product_id_key})")
             
             if matched_products:
                 category_result = {
@@ -236,34 +251,6 @@ def match_products_with_ingredients(categories, query_context=None):
     return final_results
 
 def match_products_with_ingredients_for_redis(categories, query_context=None):
-    """Match products and return with FULL IDs for Redis storage - FIXED"""
-    logger.info("Matching products for Redis storage (with internal IDs)")
-    products_data = load_products()
-    if not products_data:
-        return []
-    results_with_ids = []
-    public_results = match_products_with_ingredients(categories, query_context=query_context)
-    for result in public_results:
-        products_with_ids = []
-        for public_product in result["products"]:
-            original_product = next(
-                (p for p in products_data 
-                    if p["ProductName"] == public_product["ProductName"]),
-                None
-            )
-            if original_product:
-                product_with_id = {
-                    "_id": original_product["_id"],
-                    "ProductName": original_product["ProductName"],
-                    "image": original_product["image"],
-                    "mrpPrice": original_product["mrpPrice"],
-                    "offerPrice": original_product["offerPrice"],
-                    "quantity": 1
-                }
-                products_with_ids.append(product_with_id)
-        result_with_ids = {
-            "category": result["category"],
-            "products": products_with_ids
-        }
-        results_with_ids.append(result_with_ids)
-    return results_with_ids
+    """Match products for Redis storage - same structure as public API now"""
+    logger.info("Matching products for Redis storage (using MongoDB _id as ProductID)")
+    return match_products_with_ingredients(categories, query_context=query_context)

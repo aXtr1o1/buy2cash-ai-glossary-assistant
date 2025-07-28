@@ -75,17 +75,12 @@ class GroceryAssistant:
     def _extract_json_from_response(self, response_content: str):
         """Extract and validate JSON from LLM response"""
         try:
-            # Remove any markdown formatting
             cleaned_content = response_content.strip()
             if cleaned_content.startswith('```'):
                 cleaned_content = cleaned_content[7:]
             if cleaned_content.endswith('```'):
                 cleaned_content = cleaned_content[:-3]
-            
-            # Remove any extra whitespace or newlines
             cleaned_content = cleaned_content.strip()
-            
-            # Try to find JSON content using regex
             json_pattern = r'\{.*\}'
             json_match = re.search(json_pattern, cleaned_content, re.DOTALL)
             
@@ -93,7 +88,6 @@ class GroceryAssistant:
                 json_str = json_match.group(0)
                 return json.loads(json_str)
             else:
-                # If no JSON pattern found, try parsing the whole content
                 return json.loads(cleaned_content)
                 
         except json.JSONDecodeError as e:
@@ -138,8 +132,7 @@ Respond with ONLY the JSON structure above:'''
                 
                 response = self.llm.invoke(prompt)
                 result = self._extract_json_from_response(response.content)
-                
-                # Validate the structure
+
                 if not isinstance(result, dict) or "categories" not in result:
                     raise ValueError("Invalid response structure")
                 
@@ -208,7 +201,7 @@ Response format (JSON only):
 {{
   "dishbased": ["dish_name"],
   "cuisinebased": ["cuisine_type"],
-  "dietarypreferences": ["diet_type"],
+  "dietarypreferences": ["Vegan", "Vegetarian", "Gluten-Free", "Dairy-Free"],
   "timebased": ["based on timestamp and the dish decide the time based"]
 }}
 
@@ -221,7 +214,6 @@ Respond with ONLY the JSON structure above:'''
                 response = self.llm.invoke(prompt)
                 result = self._extract_json_from_response(response.content)
                 
-                # Validate and ensure all fields exist
                 metadata = {
                     "dishbased": result.get("dishbased", []),
                     "cuisinebased": result.get("cuisinebased", []),
@@ -229,10 +221,8 @@ Respond with ONLY the JSON structure above:'''
                     "timebased": result.get("timebased", [])
                 }
                 
-                # Ensure at least some fields are populated
                 total_items = sum(len(v) for v in metadata.values())
                 if total_items == 0:
-                    # Provide minimal fallback
                     metadata = {
                         "dishbased": ["general"],
                         "cuisinebased": ["international"],

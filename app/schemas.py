@@ -4,7 +4,6 @@ from pydantic import BaseModel, Field, validator, RootModel
 
 logger = logging.getLogger(__name__)
 
-# Public category model (includes _id for frontend usage)
 class SlimCategory(BaseModel):
     _id: Union[Dict[str, str], str]
     name: str
@@ -21,16 +20,16 @@ class IngredientCategory(BaseModel):
         extra = "allow"
 
 class Product(BaseModel):
+    ProductID: Union[Dict[str, str], str] 
     ProductName: str
     image: List[str] = Field(default_factory=list)
     mrpPrice: float
     offerPrice: float
     quantity: int = 1
 
-# Public response (includes category _id)
 class CategoryProductList(BaseModel):
-    category: SlimCategory  # Includes _id for frontend
-    products: List[Product]  # Products still without _id for privacy
+    category: SlimCategory  
+    products: List[Product]  
 
 # Request Models
 class GenerateRequest(BaseModel):
@@ -54,26 +53,22 @@ class MatchRequest(BaseModel):
     class Config:
         extra = "allow"
 
-# Response Models
 class GenerationResponse(BaseModel):
     user_id: str
     query: str
     timestamp: str
     categories: List[IngredientCategory]
 
-# Public API response (includes category _id)
 class ProductMappingResponse(RootModel[List[CategoryProductList]]):
     root: List[CategoryProductList]
 
-# Internal models for Redis storage - FIXED
 class ProductInternal(BaseModel):
-    _id: Union[Dict[str, str], str]
+    ProductID: Union[Dict[str, str], str]  
     ProductName: str
     image: List[str] = Field(default_factory=list)
     mrpPrice: float
     offerPrice: float
     quantity: int = 1
-    # Removed category field - not needed in Redis product storage
 
 class CategoryProductListWithProductIds(BaseModel):
     category: SlimCategory

@@ -60,5 +60,4 @@ def setup_logging():
     logger.info("Logging configured successfully")
     return logger
 
-# Initialize logging when module is imported
 setup_logging()

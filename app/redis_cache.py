@@ -29,7 +29,7 @@ def save_to_redis(user_id: str, data: dict) -> bool:
     try:
         key = f"user_id:{user_id}:queries"
         r.rpush(key, json.dumps(data))
-        r.expire(key, 30 * 24 * 60 * 60)  # 30 days
+        r.expire(key, 1 * 24 * 60 * 60)  # 1 day
         
         logger.info(f"Successfully saved data to Redis for user: {user_id}")
         return True
