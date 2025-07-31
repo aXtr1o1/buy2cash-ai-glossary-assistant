@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Union, Any
+from typing import List, Dict, Union, Any, Optional
 from pydantic import BaseModel, Field, validator, RootModel
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ class IngredientCategory(BaseModel):
         extra = "allow"
 
 class Product(BaseModel):
-    ProductID: Union[Dict[str, str], str] 
+    #ProductID: Optional[Union[Dict[str, str], str]] 
     ProductName: str
     image: List[str] = Field(default_factory=list)
     mrpPrice: float
@@ -63,7 +63,7 @@ class ProductMappingResponse(RootModel[List[CategoryProductList]]):
     root: List[CategoryProductList]
 
 class ProductInternal(BaseModel):
-    ProductID: Union[Dict[str, str], str]  
+    #ProductID: Optional[Union[Dict[str, str], str]] 
     ProductName: str
     image: List[str] = Field(default_factory=list)
     mrpPrice: float
