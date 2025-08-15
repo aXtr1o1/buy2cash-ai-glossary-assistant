@@ -1,9 +1,7 @@
 import logging
 import logging.config
 import os
-from datetime import datetime
 
-# Create logs directory if it doesn't exist
 os.makedirs("logs", exist_ok=True)
 
 LOGGING_CONFIG = {
@@ -31,7 +29,7 @@ LOGGING_CONFIG = {
             "level": "DEBUG",
             "formatter": "detailed",
             "filename": "app.log",
-            "maxBytes": 10485760,  # 10MB
+            "maxBytes": 10485760,
             "backupCount": 5
         }
     },
