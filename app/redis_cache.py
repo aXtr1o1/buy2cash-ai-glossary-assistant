@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 logger = logging.getLogger(__name__)
 load_dotenv(dotenv_path="config.env")
 
-# Initialize Redis
 try:
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     logger.info(f"Connecting to Redis: {redis_url}")
@@ -18,7 +17,7 @@ except Exception as e:
     logger.error(f"Redis connection failed: {e}")
     r = None
 
-def save_to_redis(user_id: str, data: dict) -> bool:
+def save_user_query_to_redis(user_id: str, data: dict) -> bool:
     """Save user query data to Redis"""
     logger.info(f"Saving data to Redis for user: {user_id}")
     
@@ -29,7 +28,7 @@ def save_to_redis(user_id: str, data: dict) -> bool:
     try:
         key = f"user_id:{user_id}:queries"
         r.rpush(key, json.dumps(data))
-        r.expire(key, 1 * 24 * 60 * 60)  # 1 day
+        r.expire(key, 1 * 24 * 60 * 60)  # 1 day  
         
         logger.info(f"Successfully saved data to Redis for user: {user_id}")
         return True
@@ -38,7 +37,7 @@ def save_to_redis(user_id: str, data: dict) -> bool:
         logger.error(f"Error saving to Redis: {e}")
         return False
 
-def get_user_queries(user_id: str) -> list:
+def get_user_queries_from_redis(user_id: str) -> list:
     """Get all queries for a user"""
     logger.info(f"Retrieving queries from Redis for user: {user_id}")
     

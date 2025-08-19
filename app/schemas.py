@@ -1,90 +1,80 @@
 import logging
 from typing import List, Dict, Union, Any, Optional
-from pydantic import BaseModel, Field, validator, RootModel
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
-class SlimCategory(BaseModel):
-    _id: Union[Dict[str, str], str]
+class Category(BaseModel):
+    _id: str
+    categoryId: str  
     name: str
-    
-    class Config:
-        allow_population_by_field_name = True
-        extra = "allow"
+
+class Seller(BaseModel):
+    _id: str
+    sellerId: str  
+    storeName: str
+    storeContactName: str
+    email: Optional[str] = ""
+    phoneNumber: Optional[str] = ""
+    status: str
+    isActive: bool
 
 class IngredientCategory(BaseModel):
-    category: SlimCategory
+    category: Category
     items: List[str]
-    
-    class Config:
-        extra = "allow"
 
-class Product(BaseModel):
-    #ProductID: Optional[Union[Dict[str, str], str]] 
+class ProductMatch(BaseModel):
+    Product_id: str
     ProductName: str
     image: List[str] = Field(default_factory=list)
     mrpPrice: float
     offerPrice: float
     quantity: int = 1
 
-class CategoryProductList(BaseModel):
-    category: SlimCategory  
-    products: List[Product]  
+class CategoryProductMatch(BaseModel):
+    category: Category
+    products: List[ProductMatch]
 
-# Request Models
-class GenerateRequest(BaseModel):
+class ProductMatchingRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=1000)
     user_id: str = Field(..., min_length=1, max_length=100)
+    store_id: str = Field(..., min_length=1, max_length=100)
     
-    @validator('query')
+    @field_validator('query')
+    @classmethod
     def validate_query(cls, v):
         return v.strip()
     
-    @validator('user_id')
+    @field_validator('user_id')
+    @classmethod
     def validate_user_id(cls, v):
         return v.strip()
-
-class MatchRequest(BaseModel):
-    categories: List[IngredientCategory]
-    user_id: str = Field(..., min_length=1, max_length=100)
-    query: str = Field(..., min_length=1, max_length=1000)
-    timestamp: str = None
     
-    class Config:
-        extra = "allow"
+    @field_validator('store_id')
+    @classmethod
+    def validate_store_id(cls, v):
+        return v.strip()
 
-class GenerationResponse(BaseModel):
+class ProductMatchingResponse(BaseModel):
+    query: str
     user_id: str
+    store_id: str
+    timestamp: str
+    matched_products: List[CategoryProductMatch]
+
+class RedisStoreData(BaseModel):
+    user_id: str
+    store_id: str
     query: str
     timestamp: str
-    categories: List[IngredientCategory]
-
-class ProductMappingResponse(RootModel[List[CategoryProductList]]):
-    root: List[CategoryProductList]
-
-class ProductInternal(BaseModel):
-    #ProductID: Optional[Union[Dict[str, str], str]] 
-    ProductName: str
-    image: List[str] = Field(default_factory=list)
-    mrpPrice: float
-    offerPrice: float
-    quantity: int = 1
-
-class CategoryProductListWithProductIds(BaseModel):
-    category: SlimCategory
-    products: List[ProductInternal]
-
-class RedisMetadataResponse(BaseModel):
-    user_id: str
-    query: str
-    timestamp: str
-    product_mapping_results: List[CategoryProductListWithProductIds]
+    all_generated_categories: List[IngredientCategory] = Field(default_factory=list) 
+    matched_products: List[CategoryProductMatch]  
     dishbased: List[str] = Field(default_factory=list)
     cuisinebased: List[str] = Field(default_factory=list)
     dietarypreferences: List[str] = Field(default_factory=list)
     timebased: List[str] = Field(default_factory=list)
 
 class UserQueriesResponse(BaseModel):
-    queries: List[RedisMetadataResponse]
+    queries: List[RedisStoreData]
 
-logger.info("Schemas loaded successfully")
+logger.info("Enhanced schemas loaded successfully")

@@ -1,6 +1,5 @@
 """
 Guardrails and validation logic for the grocery assistant
-Ensures data quality and prevents malicious inputs
 """
 
 import re
@@ -12,15 +11,12 @@ logger = logging.getLogger(__name__)
 class ValidationRails:
     """Validation and guardrails for grocery assistant operations"""
     
-    # Maximum limits to prevent abuse
     MAX_QUERY_LENGTH = 1000
-    MAX_CATEGORIES_PER_QUERY = 10
-    MAX_ITEMS_PER_CATEGORY = 20
     MAX_USER_ID_LENGTH = 100
+    MAX_STORE_ID_LENGTH = 100
     
-    # Blocked patterns (case insensitive)
     BLOCKED_PATTERNS = [
-        r'<script.*?>.*?</script>',  # XSS protection
+        r'<script.*?>.*?</script>',
         r'javascript:',
         r'data:text/html',
         r'vbscript:',
@@ -42,7 +38,6 @@ class ValidationRails:
         if len(query) > cls.MAX_QUERY_LENGTH:
             return False, f"Query too long (max {cls.MAX_QUERY_LENGTH} characters)"
         
-        # Check for blocked patterns
         for pattern in cls.BLOCKED_PATTERNS:
             if re.search(pattern, query, re.IGNORECASE):
                 logger.warning(f"Blocked query pattern detected: {pattern}")
@@ -70,75 +65,43 @@ class ValidationRails:
         return True, "Valid"
     
     @classmethod
-    def validate_categories_structure(cls, categories: List[Dict]) -> Tuple[bool, str]:
-        """Validate categories structure from LLM or user input"""
-        if not isinstance(categories, list):
-            return False, "Categories must be a list"
+    def validate_store_id(cls, store_id: str) -> Tuple[bool, str]:
+        """Validate store ID (MongoDB ObjectId format)"""
+        if not store_id or not isinstance(store_id, str):
+            return False, "Store ID is required and must be a string"
         
-        if len(categories) > cls.MAX_CATEGORIES_PER_QUERY:
-            return False, f"Too many categories (max {cls.MAX_CATEGORIES_PER_QUERY})"
+        store_id = store_id.strip()
         
-        for i, cat_entry in enumerate(categories):
-            if not isinstance(cat_entry, dict):
-                return False, f"Category {i} must be an object"
-            
-            if "category" not in cat_entry:
-                return False, f"Category {i} missing 'category' field"
-            
-            if "items" not in cat_entry:
-                return False, f"Category {i} missing 'items' field"
-            
-            items = cat_entry["items"]
-            if not isinstance(items, list):
-                return False, f"Category {i} items must be a list"
-            
-            if len(items) > cls.MAX_ITEMS_PER_CATEGORY:
-                return False, f"Category {i} has too many items (max {cls.MAX_ITEMS_PER_CATEGORY})"
+        if len(store_id) == 0:
+            return False, "Store ID cannot be empty"
+        
+        if len(store_id) > cls.MAX_STORE_ID_LENGTH:
+            return False, f"Store ID too long (max {cls.MAX_STORE_ID_LENGTH} characters)"
 
-            for j, item in enumerate(items):
-                if not isinstance(item, str) or not item.strip():
-                    return False, f"Category {i}, item {j} must be a non-empty string"
+        if not re.match(r'^[a-fA-F0-9]{24}$', store_id):
+            return False, "Store ID must be a valid MongoDB ObjectId (24 hexadecimal characters)"
         
         return True, "Valid"
     
     @classmethod
-    def sanitize_llm_response(cls, response: Dict[str, Any]) -> Dict[str, Any]:
-        """Sanitize LLM response to ensure data quality"""
-        sanitized = {}
- 
-        categories = response.get("categories", [])
-        if isinstance(categories, list):
-            sanitized_categories = []
-            for cat_entry in categories[:cls.MAX_CATEGORIES_PER_QUERY]: 
-                if isinstance(cat_entry, dict) and "category" in cat_entry and "items" in cat_entry:
-                    items = cat_entry["items"]
-                    if isinstance(items, list):
-                        clean_items = []
-                        for item in items[:cls.MAX_ITEMS_PER_CATEGORY]:
-                            if isinstance(item, str) and item.strip():
-                                clean_item = item.strip()[:100]  # Limit item length
-                                clean_items.append(clean_item)
-                        
-                        sanitized_categories.append({
-                            "category": cat_entry["category"],
-                            "items": clean_items
-                        })
-            
-            sanitized["categories"] = sanitized_categories
+    def sanitize_product_results(cls, results: List[Dict]) -> List[Dict]:
+        """Sanitize product matching results"""
+        sanitized = []
         
-        for field in ["dishbased", "cuisinebased", "dietarypreferences", "timebased"]:
-            value = response.get(field, [])
-            if isinstance(value, list):
-                clean_values = []
-                for v in value[:5]:  # Limit to 5 items per metadata field
-                    if isinstance(v, str) and v.strip():
-                        clean_v = v.strip().lower()[:50]  # Limit length and normalize
-                        if re.match(r'^[a-zA-Z0-9\s_-]+$', clean_v):
-                            clean_values.append(clean_v)
-                
-                sanitized[field] = clean_values
-            else:
-                sanitized[field] = []
+        for category_result in results[:100]: 
+            if isinstance(category_result, dict) and "category" in category_result and "products" in category_result:
+                products = category_result["products"]
+                if isinstance(products, list):
+                    clean_products = []
+                    for product in products[:100]:  
+                        if isinstance(product, dict) and "ProductName" in product:
+                            clean_products.append(product)
+                    
+                    if clean_products:
+                        sanitized.append({
+                            "category": category_result["category"],
+                            "products": clean_products
+                        })
         
         return sanitized
 
