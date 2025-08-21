@@ -9,32 +9,460 @@ from rapidfuzz import fuzz, process
 from app.db import get_categories_by_store, get_optimized_products_for_matching
 from app.utils import safe_float
 import urllib.parse
+import asyncio
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+from typing import Dict, List, Tuple, Any
+from functools import lru_cache
+import threading
 
 logger = logging.getLogger(__name__)
 load_dotenv(dotenv_path="config.env")
 
-class CoreMatcher:
+class OptimizedCoreMatcher:
     def __init__(self):
-        logger.info("Initializing CoreMatcher with MongoDB data")
+        logger.info("Initializing OptimizedCoreMatcher with advanced caching and parallel processing")
         self.llm = None
         self.validation_llm = None
         self.llm_cache = {}
+        self.similarity_cache = {}
+        self.product_cache = {}
+        self.category_cache = {}
+        self.cache_lock = threading.Lock()
+        self.executor = ThreadPoolExecutor(max_workers=6)
         self._init_llm()
-        logger.info("CoreMatcher initialized successfully")
+        logger.info("OptimizedCoreMatcher initialized successfully with parallel processing")
 
     def _init_llm(self):
-        """Initialize OpenAI LLM"""
+        """Initialize OpenAI LLM with optimized settings"""
         try:
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
                 raise ValueError("OPENAI_API_KEY not set in environment")
-            
-            self.llm = ChatOpenAI(model="gpt-4o-mini", openai_api_key=api_key, temperature=0.2)
-            self.validation_llm = ChatOpenAI(model="gpt-4o-mini", openai_api_key=api_key, temperature=0.2)
-            logger.info("OpenAI LLM initialized successfully")
+
+            self.llm = ChatOpenAI(
+                model="gpt-4o-mini", 
+                openai_api_key=api_key, 
+                temperature=0.3,
+                max_retries=2,
+                request_timeout=30
+            )
+            self.validation_llm = ChatOpenAI(
+                model="gpt-4o-mini", 
+                openai_api_key=api_key, 
+                temperature=0.2,
+                max_retries=2,
+                request_timeout=20
+            )
+            logger.info("Optimized OpenAI LLM initialized successfully")
         except Exception as e:
             logger.error(f"Error initializing LLM: {e}")
             raise ValueError(f"Failed to initialize LLM: {e}")
+
+    async def generate_ingredients_and_match_products_async(self, user_query: str, store_id: str):
+        """
+        MAIN OPTIMIZATION: Fully async product matching with parallel processing
+        Target: 8-12 seconds from 32 seconds
+        """
+        start_time = time.time()
+        logger.info(f"Starting ASYNC processing: '{user_query[:50]}...' for store: {store_id}")
+        async def get_categories_async():
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(self.executor, get_categories_by_store, store_id)
+        
+        available_categories = await get_categories_async()
+        
+        if not available_categories:
+            logger.warning(f"No categories found for store: {store_id}")
+            return {"all_generated_categories": [], "matched_products": []}
+        
+        prep_time = time.time() - start_time
+        logger.info(f"Data preparation completed in {prep_time:.2f}s")
+        llm_start = time.time()
+        ingredients_data = await self._generate_ingredients_llm_async(user_query, available_categories)
+        llm_time = time.time() - llm_start
+        logger.info(f"LLM ingredient generation completed in {llm_time:.2f}s")
+        
+        if not ingredients_data:
+            logger.warning("No ingredients generated from LLM")
+            return {"all_generated_categories": [], "matched_products": []}
+        matching_start = time.time()
+        matching_tasks = []
+        for category_data in ingredients_data:
+            task = asyncio.create_task(
+                self._process_category_parallel(category_data, available_categories, store_id, user_query)
+            )
+            matching_tasks.append(task)
+        category_results = await asyncio.gather(*matching_tasks, return_exceptions=True)
+        
+        matching_time = time.time() - matching_start
+        logger.info(f"Parallel category matching completed in {matching_time:.2f}s")
+        
+        all_generated_categories = []
+        matched_products = []
+        
+        for i, result in enumerate(category_results):
+            if isinstance(result, Exception):
+                logger.error(f"Error processing category {i}: {result}")
+                continue
+            
+            if result and isinstance(result, dict):
+                if result.get('generated_category'):
+                    all_generated_categories.append(result['generated_category'])
+                if result.get('matched_category'):
+                    matched_products.append(result['matched_category'])
+        
+        total_time = time.time() - start_time
+        logger.info(f"ASYNC processing completed in {total_time:.2f}s - Generated: {len(all_generated_categories)}, Matched: {len(matched_products)}")
+        
+        return {
+            "all_generated_categories": all_generated_categories,
+            "matched_products": matched_products
+        }
+
+    async def _process_category_parallel(self, category_data: dict, available_categories: list, store_id: str, user_query: str):
+        """Process single category with all optimizations"""
+        try:
+            category_name = category_data.get("category", "").strip()
+            items = category_data.get("items", [])
+            
+            if not category_name or not items:
+                return None
+            
+            category_info = self._find_matching_category(category_name, available_categories)
+            
+            generated_category = {
+                "category": {
+                    "_id": category_info["_id"] if category_info else "UNKNOWN",
+                    "categoryId": category_info.get("categoryId", "UNKNOWN") if category_info else "UNKNOWN",
+                    "name": category_info["name"] if category_info else category_name
+                },
+                "items": items
+            }
+            
+            if not category_info:
+                logger.warning(f"Category '{category_name}' not found - skipping product matching")
+                return {"generated_category": generated_category, "matched_category": None}
+            
+            loop = asyncio.get_event_loop()
+            products = await loop.run_in_executor(
+                self.executor, 
+                get_optimized_products_for_matching, 
+                category_info['name'], 
+                store_id
+            )
+            
+            if not products:
+                logger.warning(f"No products found for category '{category_info['name']}'")
+                return {"generated_category": generated_category, "matched_category": None}
+            
+            matched_products = await self._enhanced_match_and_validate_products_async(
+                items, products, user_query
+            )
+            
+            if matched_products:
+                matched_category = {
+                    "category": {
+                        "_id": category_info["_id"],
+                        "categoryId": category_info.get("categoryId", category_info["_id"]),
+                        "name": category_info["name"]
+                    },
+                    "products": matched_products
+                }
+                return {"generated_category": generated_category, "matched_category": matched_category}
+            
+            return {"generated_category": generated_category, "matched_category": None}
+            
+        except Exception as e:
+            logger.error(f"Error in parallel category processing: {e}")
+            return None
+
+    async def _generate_ingredients_llm_async(self, user_query: str, available_categories: list):
+        """ENHANCED: Async LLM generation with comprehensive supermarket coverage"""
+        try:
+            category_list = "\n".join([f'- {cat["name"]}' for cat in available_categories])
+            prompt = f'''You are a comprehensive SuperMarket expert with deep knowledge of ALL supermarket departments and items.
+
+User request: "{user_query}"
+
+Available Categories (ONLY use these exact names):
+{category_list}
+
+COMPREHENSIVE ANALYSIS REQUIRED:
+- Consider the complete shopping experience for this request
+- Include preparation tools, storage items, cleaning supplies if relevant  
+- Think about complementary items and alternatives
+- Consider dietary restrictions, cultural preferences, seasonal availability
+- Include both essential and optional items for the best experience
+- Think about quantity, storage, and meal planning needs
+
+Response format (JSON only):
+{{
+  "categories": [
+    {{
+      "category": "<exact category name from list>",
+      "items": ["essential_item1", "essential_item2", "optional_item3", "alternative_item4"]
+    }}
+  ]
+}}
+
+IMPORTANT: Use ONLY category names exactly as listed above. Consider ALL possible supermarket items that would enhance the user's experience.
+
+Respond with ONLY the JSON structure above:'''
+
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(self.executor, self.llm.invoke, prompt)
+            
+            result = self._extract_json_from_response(response.content)
+            
+            if not isinstance(result, dict) or "categories" not in result:
+                logger.error(f"Invalid LLM response structure: {result}")
+                raise ValueError("Invalid response structure")
+            
+            categories = result["categories"]
+            logger.info(f"Generated {len(categories)} comprehensive ingredient categories")
+            return categories
+            
+        except Exception as e:
+            logger.error(f"Error in async ingredient generation: {e}")
+            return []
+
+    async def _enhanced_match_and_validate_products_async(self, items: list, products: list, user_query: str):
+        """Fully async product matching with parallel validation"""
+        try:
+            logger.info(f"Starting async enhanced matching for {len(items)} items against {len(products)} products")
+            loop = asyncio.get_event_loop()
+            
+            matching_tasks = []
+            for item in items:
+                task = loop.run_in_executor(
+                    self.executor,
+                    self._robust_fuzzy_match_single_item,
+                    item, products, 60
+                )
+                matching_tasks.append(task)
+            item_matches = await asyncio.gather(*matching_tasks)
+            all_matched_products = []
+            used_product_ids = set()
+            
+            for i, item in enumerate(items):
+                matches = item_matches[i]
+                for product, score in matches:
+                    product_id = str(product["_id"])
+                    if product_id not in used_product_ids:
+                        all_matched_products.append({
+                            "Product_id": product_id,
+                            "ProductName": product["ProductName"],
+                            "image": product.get("image", []),
+                            "mrpPrice": safe_float(product.get("mrpPrice"), 0.0),
+                            "offerPrice": safe_float(product.get("offerPrice"), 0.0),
+                            "quantity": 1,
+                            "match_score": score,
+                            "matched_item": item
+                        })
+                        used_product_ids.add(product_id)
+            
+            if not all_matched_products:
+                logger.warning("No products matched using enhanced fuzzy matching")
+                return []
+            
+            logger.info(f"Found {len(all_matched_products)} candidate products after parallel fuzzy matching")
+            validation_pairs = [(p["matched_item"], p["ProductName"]) for p in all_matched_products]
+            validation_results = await self._batch_llm_validation_async(validation_pairs, user_query)
+            final_products = []
+            seen_products = set()
+            
+            for product_info in all_matched_products:
+                item = product_info["matched_item"]
+                product_name = product_info["ProductName"]
+                
+                is_valid = validation_results.get((item, product_name), False)
+                
+                if is_valid and product_name not in seen_products:
+                    final_product = {
+                        "Product_id": product_info["Product_id"],
+                        "ProductName": product_name,
+                        "image": product_info["image"],
+                        "mrpPrice": product_info["mrpPrice"],
+                        "offerPrice": product_info["offerPrice"],
+                        "quantity": 1
+                    }
+                    final_products.append(final_product)
+                    seen_products.add(product_name)
+            
+            logger.info(f"Final products after async LLM validation: {len(final_products)}")
+            return final_products
+            
+        except Exception as e:
+            logger.error(f"Error in async enhanced match and validate: {e}")
+            return []
+
+    async def _batch_llm_validation_async(self, item_product_pairs: list, query_context: str):
+        """Async batch LLM validation with intelligent caching"""
+        if not item_product_pairs or not self.validation_llm:
+            return {}
+        uncached_pairs = []
+        results = {}
+        
+        with self.cache_lock:
+            for item, product_name in item_product_pairs:
+                cache_key = (item.lower(), product_name.lower(), query_context.lower()[:50])
+                if cache_key in self.llm_cache:
+                    results[(item, product_name)] = self.llm_cache[cache_key]
+                else:
+                    uncached_pairs.append((item, product_name))
+        
+        if not uncached_pairs:
+            return results
+        batch_size = 25
+        batch_tasks = []
+        
+        for i in range(0, len(uncached_pairs), batch_size):
+            batch = uncached_pairs[i:i + batch_size]
+            task = self._process_validation_batch_async(batch, query_context)
+            batch_tasks.append(task)
+        batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+        for batch_result in batch_results:
+            if isinstance(batch_result, dict):
+                results.update(batch_result)
+        with self.cache_lock:
+            for item, product_name in uncached_pairs:
+                if (item, product_name) in results:
+                    cache_key = (item.lower(), product_name.lower(), query_context.lower()[:50])
+                    self.llm_cache[cache_key] = results[(item, product_name)]
+        
+        return results
+
+    async def _process_validation_batch_async(self, batch_pairs: list, query_context: str):
+        """Process a single validation batch asynchronously"""
+        try:
+            prompt = f"""
+You are a strict supermarket product matching expert. Your task is to filter out any product that is not a **real-world, practical** match for the user's actual intent.
+
+User Request Context: "{query_context}"
+
+**STRICT VALIDATION CRITERIA:**
+
+Respond **YES** ONLY if the product is:
+- An exact ingredient match for this specific request, OR
+- The best practical substitute for the request, OR
+- Something commonly used together with the main dish/cuisine mentioned
+
+Respond **NO** if the product is:
+- Different cuisine family or cooking style
+- Not a real ingredient or tool needed for this request
+- Not commonly used in this context
+- Any reasonable doubt about real-world relevance
+
+**IMPORTANT:** If you are unsure about any item, choose NO.
+
+Validate each pair:
+"""
+            
+            for i, (item, product_name) in enumerate(batch_pairs, 1):
+                prompt += f"{i}. '{item}' -> '{product_name}'\n"
+            
+            prompt += f"\nRespond format: 1:YES, 2:NO, 3:YES, 4:NO"
+            loop = asyncio.get_event_loop()
+            resp = await loop.run_in_executor(self.executor, self.validation_llm.invoke, prompt)
+            
+            answer_text = resp.content if hasattr(resp, 'content') else str(resp)
+            results = {}
+            for line in answer_text.replace('\n', ',').split(','):
+                if ':' in line:
+                    try:
+                        idx_str, decision = line.strip().split(':', 1)
+                        idx = int(idx_str) - 1
+                        if 0 <= idx < len(batch_pairs):
+                            item, product_name = batch_pairs[idx]
+                            is_valid = decision.strip().upper().startswith('YES')
+                            results[(item, product_name)] = is_valid
+                    except (ValueError, IndexError):
+                        continue
+            for item, product_name in batch_pairs:
+                if (item, product_name) not in results:
+                    results[(item, product_name)] = False
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Batch validation error: {e}")
+            return {(item, product_name): False for item, product_name in batch_pairs}
+
+    async def infer_metadata_async(self, user_query: str):
+        """Async metadata generation"""
+        try:
+            prompt = f'''Analyze and extract metadata from this query.
+
+Query: "{user_query}"
+
+Response format (JSON only):
+{{
+  "dishbased": ["specific_dish_name"],
+  "cuisinebased": ["cuisine_type"],
+  "dietarypreferences": ["dietary_type"],
+  "timebased": ["meal_time"]
+}}
+
+Instructions:
+- dishbased: Main dish/recipe mentioned (e.g., "biryani", "pasta", "salad")
+- cuisinebased: Cuisine type (e.g., "Indian", "Italian", "Chinese", "International")
+- dietarypreferences: Diet type (e.g., "Vegetarian", "Non-Vegetarian", "Vegan", "Mixed")
+- timebased: Meal timing (e.g., "breakfast", "lunch", "dinner", "snack", "general")
+
+Provide exactly one relevant value for each field.
+Respond with ONLY the JSON:'''
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(self.executor, self.llm.invoke, prompt)
+            
+            result = self._extract_json_from_response(response.content)
+            
+            return {
+                "dishbased": result.get("dishbased", ["general"]),
+                "cuisinebased": result.get("cuisinebased", ["international"]),
+                "dietarypreferences": result.get("dietarypreferences", ["mixed"]),
+                "timebased": result.get("timebased", ["general"])
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in async metadata inference: {e}")
+            return {
+                "dishbased": ["general"],
+                "cuisinebased": ["international"],
+                "dietarypreferences": ["mixed"],
+                "timebased": ["general"]
+            }
+
+    def _find_matching_category(self, category_name: str, available_categories: list):
+        """Find matching category with improved fuzzy matching"""
+        if not category_name or not available_categories:
+            return None
+        
+        category_name_lower = category_name.lower().strip()
+        for cat in available_categories:
+            if cat["name"].lower().strip() == category_name_lower:
+                return cat
+        for cat in available_categories:
+            cat_name_lower = cat["name"].lower().strip()
+            if category_name_lower in cat_name_lower or cat_name_lower in category_name_lower:
+                return cat
+
+        variations = [
+            category_name_lower,
+            category_name_lower.replace(" ", ""),
+            category_name_lower.replace("&", "and"),
+            category_name_lower.replace("and", "&"),
+            category_name_lower.replace("s", "").rstrip(),
+        ]
+        
+        for cat in available_categories:
+            cat_name_lower = cat["name"].lower().strip()
+            for variation in variations:
+                if variation in cat_name_lower or cat_name_lower in variation:
+                    return cat
+        
+        logger.warning(f"No matching category found for '{category_name}'")
+        return None
 
     def _extract_json_from_response(self, response_content: str):
         """Extract JSON from LLM response content"""
@@ -56,268 +484,10 @@ class CoreMatcher:
             return json.loads(cleaned_content)
         except json.JSONDecodeError as e:
             logger.error(f"JSON decoding failed: {e}")
-            logger.error(f"Response content: {cleaned_content}")
             raise
         except Exception as e:
             logger.error(f"Error extracting JSON: {e}")
             raise
-
-    def generate_ingredients_and_match_products(self, user_query: str, store_id: str):
-        """
-        Enhanced product matching - returns both all_generated_categories and matched_products
-        """
-        logger.info(f"Processing query: '{user_query[:50]}...' for store: {store_id}")
-        available_categories = get_categories_by_store(store_id)
-        if not available_categories:
-            logger.warning(f"No categories found for store: {store_id}")
-            return {
-                "all_generated_categories": [],
-                "matched_products": []
-            }
-        
-        logger.info(f"Available categories for store {store_id}: {[cat['name'] for cat in available_categories]}")
-        ingredients_data = self._generate_ingredients_llm(user_query, available_categories)
-        if not ingredients_data:
-            logger.warning("No ingredients generated from LLM")
-            return {
-                "all_generated_categories": [],
-                "matched_products": []
-            }
-        
-        logger.info(f"Generated ingredient categories: {[cat.get('category', 'Unknown') for cat in ingredients_data]}")
-        all_generated_categories = []
-        for category_data in ingredients_data:
-            category_name = category_data.get("category", "").strip()
-            items = category_data.get("items", [])
-            
-            if category_name and items:
-                # Find category info
-                category_info = self._find_matching_category(category_name, available_categories)
-                if category_info:
-                    all_generated_categories.append({
-                        "category": {
-                            "_id": category_info["_id"],
-                            "categoryId": category_info.get("categoryId", category_info["_id"]),
-                            "name": category_info["name"]
-                        },
-                        "items": items
-                    })
-                else:
-                    all_generated_categories.append({
-                        "category": {
-                            "_id": "UNKNOWN",
-                            "categoryId": "UNKNOWN",
-                            "name": category_name
-                        },
-                        "items": items
-                    })
-        matched_products = []
-        
-        for category_data in ingredients_data:
-            try:
-                category_name = category_data.get("category", "").strip()
-                items = category_data.get("items", [])
-                
-                if not category_name or not items:
-                    logger.warning(f"Skipping invalid category data: {category_data}")
-                    continue
-                
-                logger.info(f"Processing category: '{category_name}' with items: {items}")
-                
-                # Find the category info
-                category_info = self._find_matching_category(category_name, available_categories)
-                
-                if not category_info:
-                    logger.warning(f"Category '{category_name}' not found in available categories - skipping product matching")
-                    continue
-                
-                logger.info(f"Matched category '{category_name}' to '{category_info['name']}' (ID: {category_info['_id']})")
-                
-                # Get optimized products for fuzzy matching
-                products = get_optimized_products_for_matching(category_info['name'], store_id)
-                if not products:
-                    logger.warning(f"No products found for category '{category_info['name']}' and store {store_id}")
-                    continue
-                
-                logger.info(f"Found {len(products)} optimized products for category '{category_info['name']}'")
-                matched_category_products = self._enhanced_match_and_validate_products(items, products, user_query)
-                
-                if matched_category_products:
-                    matched_products.append({
-                        "category": {
-                            "_id": category_info["_id"],
-                            "categoryId": category_info.get("categoryId", category_info["_id"]),
-                            "name": category_info["name"]
-                        },
-                        "products": matched_category_products
-                    })
-                    logger.info(f"Successfully matched {len(matched_category_products)} products for category '{category_info['name']}'")
-                else:
-                    logger.warning(f"No products matched after validation for category '{category_info['name']}'")
-            
-            except Exception as e:
-                logger.error(f"Error processing category {category_data}: {e}")
-                continue
-        
-        logger.info(f"Successfully processed query - Generated categories: {len(all_generated_categories)}, Matched categories: {len(matched_products)}")
-        
-        return {
-            "all_generated_categories": all_generated_categories,
-            "matched_products": matched_products
-        }
-
-    def _find_matching_category(self, category_name: str, available_categories: list):
-        """Find matching category with improved fuzzy matching"""
-        if not category_name or not available_categories:
-            return None
-        
-        category_name_lower = category_name.lower().strip()
-        for cat in available_categories:
-            if cat["name"].lower().strip() == category_name_lower:
-                return cat
-        for cat in available_categories:
-            cat_name_lower = cat["name"].lower().strip()
-            if category_name_lower in cat_name_lower or cat_name_lower in category_name_lower:
-                return cat
-        variations = [
-            category_name_lower,
-            category_name_lower.replace(" ", ""),
-            category_name_lower.replace("&", "and"),
-            category_name_lower.replace("and", "&"),
-            category_name_lower.replace("s", "").rstrip(),
-        ]
-        
-        for cat in available_categories:
-            cat_name_lower = cat["name"].lower().strip()
-            for variation in variations:
-                if variation in cat_name_lower or cat_name_lower in variation:
-                    return cat
-        
-        logger.warning(f"No matching category found for '{category_name}' in available categories: {[cat['name'] for cat in available_categories]}")
-        return None
-
-    def _generate_ingredients_llm(self, user_query: str, available_categories: list):
-        """Generate ingredients using LLM"""
-        try:
-            category_list = "\n".join([f'- {cat["name"]}' for cat in available_categories])
-            
-            prompt = f'''You are a culinary expert. Analyze this cooking request and suggest ingredients by category.
-
-User request: "{user_query}"
-
-Available Categories (ONLY use these):
-{category_list}
-
-IMPORTANT:
-- ONLY use category names EXACTLY as provided in the list above
-- Match ingredients to the specific dish/cuisine mentioned
-- Focus on commonly used ingredients for the requested dish
-- Consider real-world cooking practices
-
-Response format (JSON only):
-{{
-  "categories": [
-    {{
-      "category": "<exact category name from list>",
-      "items": ["item1", "item2", "item3"]
-    }}
-  ]
-}}
-
-Respond with ONLY the JSON structure above:'''
-            
-            response = self.llm.invoke(prompt)
-            result = self._extract_json_from_response(response.content)
-            
-            if not isinstance(result, dict) or "categories" not in result:
-                logger.error(f"Invalid LLM response structure: {result}")
-                raise ValueError("Invalid response structure")
-            
-            categories = result["categories"]
-            logger.info(f"Generated {len(categories)} ingredient categories")
-            return categories
-            
-        except Exception as e:
-            logger.error(f"Error generating ingredients: {e}")
-            return []
-
-    def _enhanced_match_and_validate_products(self, items: list, products: list, user_query: str):
-        """Enhanced product matching with optimized fuzzy matching"""
-        try:
-            logger.info(f"Starting enhanced matching for {len(items)} items against {len(products)} products")
-            all_matched_products = self._get_matching_products_for_items(items, products)
-            
-            if not all_matched_products:
-                logger.warning("No products matched using enhanced fuzzy matching")
-                return []
-            
-            logger.info(f"Found {len(all_matched_products)} candidate products after fuzzy matching")
-            validation_pairs = []
-            for product_info in all_matched_products:
-                validation_pairs.append((product_info["matched_item"], product_info["ProductName"]))
-            validation_results = self._batch_llm_validation(validation_pairs, user_query)
-            final_products = []
-            seen_products = set()
-            
-            for product_info in all_matched_products:
-                item = product_info["matched_item"]
-                product_name = product_info["ProductName"]
-                
-                is_valid = validation_results.get((item, product_name), False)
-                
-                if is_valid and product_name not in seen_products:
-                    final_product = {
-                        "Product_id": product_info["Product_id"],
-                        "ProductName": product_name,
-                        "image": product_info["image"],
-                        "mrpPrice": product_info["mrpPrice"],
-                        "offerPrice": product_info["offerPrice"],
-                        "quantity": 1
-                    }
-                    final_products.append(final_product)
-                    seen_products.add(product_name)
-                    
-                    logger.info(f"APPROVED: '{product_name}' for '{item}' (score: {product_info.get('match_score', 0)})")
-                elif not is_valid:
-                    logger.debug(f"REJECTED: '{product_name}' for '{item}' (failed LLM validation)")
-            
-            logger.info(f"Final products after LLM validation: {len(final_products)}")
-            return final_products
-            
-        except Exception as e:
-            logger.error(f"Error in enhanced match and validate: {e}")
-            return []
-
-    def _get_matching_products_for_items(self, items: list, products: list):
-        """Core function to match products against generated items using enhanced fuzzy matching"""
-        matched_products = []
-        used_product_ids = set()
-        for item in items:
-            logger.info(f"Matching products for item: '{item}'")
-            
-            item_matches = self._robust_fuzzy_match_single_item(item, products)
-            
-            # Add unique matches
-            for product, score in item_matches:
-                product_id = str(product["_id"])
-                if product_id not in used_product_ids:
-                    matched_products.append({
-                        "Product_id": product_id,
-                        "ProductName": product["ProductName"],
-                        "image": product.get("image", []),
-                        "mrpPrice": safe_float(product.get("mrpPrice"), 0.0),
-                        "offerPrice": safe_float(product.get("offerPrice"), 0.0),
-                        "quantity": 1,
-                        "match_score": score,
-                        "matched_item": item
-                    })
-                    used_product_ids.add(product_id)
-                    
-                    logger.debug(f"Added match: '{product['ProductName']}' for '{item}' (score: {score})")
-        matched_products.sort(key=lambda x: x["match_score"], reverse=True)
-        
-        logger.info(f"Total unique products matched: {len(matched_products)}")
-        return matched_products
 
     def _extract_filename_from_url(self, url: str):
         """Extract filename from image URL for matching"""
@@ -338,9 +508,7 @@ Respond with ONLY the JSON structure above:'''
             return ""
 
     def _robust_fuzzy_match_single_item(self, item: str, products: list, threshold: int = 60):
-        """
-        Robust fuzzy matching with image URL matching and proper sorting
-        """
+        """Robust fuzzy matching with image URL matching"""
         try:
             if not item or not products:
                 return []
@@ -351,7 +519,6 @@ Respond with ONLY the JSON structure above:'''
             
             for i, product in enumerate(products):
                 try:
-                    # Validate product structure
                     if not isinstance(product, dict) or not product.get("ProductName"):
                         continue
                     
@@ -371,168 +538,48 @@ Respond with ONLY the JSON structure above:'''
                         if score > max_score:
                             max_score = min(score, 100)
                             match_source = "word_name"
-                    try:
-                        fuzzy_name_score = fuzz.partial_ratio(item_clean, product_name_lower)
-                        if fuzzy_name_score > max_score and fuzzy_name_score >= threshold:
-                            max_score = fuzzy_name_score
-                            match_source = "fuzzy_name"
-                    except Exception:
-                        pass
-                    images = product.get("image", [])
-                    if isinstance(images, list) and images:
-                        for image_url in images:
-                            if isinstance(image_url, str):
-                                filename = self._extract_filename_from_url(image_url)
-                                if filename:
-                                    if item_clean in filename:
-                                        image_score = 95
-                                        if image_score > max_score:
-                                            max_score = image_score
-                                            match_source = "exact_image"
-                                    elif any(word in filename for word in item_words if word):
-                                        word_count = sum(1 for word in item_words if word and word in filename)
-                                        image_score = 80 + (word_count * 3)
-                                        if image_score > max_score:
-                                            max_score = min(image_score, 95)
-                                            match_source = "word_image"
-                                    else:
-                                        try:
-                                            fuzzy_image_score = fuzz.partial_ratio(item_clean, filename)
-                                            if fuzzy_image_score > max_score and fuzzy_image_score >= (threshold - 10):
-                                                max_score = fuzzy_image_score
-                                                match_source = "fuzzy_image"
-                                        except Exception:
-                                            pass
+                    if max_score < 90:
+                        try:
+                            fuzzy_name_score = fuzz.partial_ratio(item_clean, product_name_lower)
+                            if fuzzy_name_score > max_score and fuzzy_name_score >= threshold:
+                                max_score = fuzzy_name_score
+                                match_source = "fuzzy_name"
+                        except Exception:
+                            pass
+                    if max_score < 95:
+                        images = product.get("image", [])
+                        if isinstance(images, list) and images:
+                            for image_url in images[:10]:  
+                                if isinstance(image_url, str):
+                                    filename = self._extract_filename_from_url(image_url)
+                                    if filename:
+                                        if item_clean in filename:
+                                            image_score = 95
+                                            if image_score > max_score:
+                                                max_score = image_score
+                                                match_source = "exact_image"
+                                                break
+                    
                     if max_score >= threshold:
                         matches.append({
                             'product': product,
                             'score': max_score,
                             'source': match_source,
-                            'index': i  
+                            'index': i
                         })
-                        
-                        logger.debug(f"Match found: '{product_name}' for '{item}' (score: {max_score}, source: {match_source})")
                 
                 except Exception as product_error:
                     logger.debug(f"Error processing product {i}: {product_error}")
                     continue
-            try:
-                matches.sort(key=lambda x: (-x['score'], x['index']))
-            except Exception as sort_error:
-                logger.error(f"Error sorting matches: {sort_error}")
-                return []
-            result = []
-            for match in matches[:100]: 
-                result.append((match['product'], match['score']))
             
-            logger.debug(f"Robust fuzzy matching for '{item}': found {len(result)} matches")
+            matches.sort(key=lambda x: (-x['score'], x['index']))
+            
+            result = [(match['product'], match['score']) for match in matches[:50]]
             return result
             
         except Exception as e:
             logger.error(f"Error in robust fuzzy matching for item '{item}': {e}")
             return []
 
-    def _batch_llm_validation(self, item_product_pairs: list, query_context: str):
-        """Batch validate product-item suitability with LLM"""
-        if not item_product_pairs or not self.validation_llm:
-            return {}
-        
-        uncached_pairs = []
-        results = {}
-        for item, product_name in item_product_pairs:
-            cache_key = (item.lower(), product_name.lower(), query_context.lower())
-            if cache_key in self.llm_cache:
-                results[(item, product_name)] = self.llm_cache[cache_key]
-            else:
-                uncached_pairs.append((item, product_name))
-        
-        if not uncached_pairs:
-            return results
-        prompt = f'''You are a strict culinary expert. User wants to cook: "{query_context}"
-
-For each ingredient-product pair, determine if the product is TRULY suitable for the ingredient in this dish context.
-
-STRICT CRITERIA:
-1. Exact ingredient match = YES
-2. Same cuisine family = YES  
-3. Different cuisine family = NO
-4. Real-world cooking compatibility = YES/NO
-
-Evaluate each pair:
-
-'''
-        
-        for i, (item, product_name) in enumerate(uncached_pairs, 1):
-            prompt += f"{i}. Ingredient: '{item}' → Product: '{product_name}'\n"
-        
-        prompt += f"\nRespond ONLY in format: 1:YES, 2:NO, 3:YES, 4:NO, etc."
-        
-        try:
-            resp = self.validation_llm.invoke(prompt)
-            answer_text = resp.content if hasattr(resp, 'content') else str(resp)
-            
-            logger.info(f"Batch LLM validation completed for {len(uncached_pairs)} pairs")
-            
-            for line in answer_text.replace('\n', ',').split(','):
-                if ':' in line:
-                    try:
-                        idx_str, decision = line.strip().split(':', 1)
-                        idx = int(idx_str) - 1
-                        if 0 <= idx < len(uncached_pairs):
-                            item, product_name = uncached_pairs[idx]
-                            is_valid = decision.strip().upper().startswith('YES')
-                            results[(item, product_name)] = is_valid
-                            cache_key = (item.lower(), product_name.lower(), query_context.lower())
-                            self.llm_cache[cache_key] = is_valid
-                    except (ValueError, IndexError) as e:
-                        logger.debug(f"Error parsing LLM response line '{line}': {e}")
-                        continue
-            for item, product_name in uncached_pairs:
-                if (item, product_name) not in results:
-                    results[(item, product_name)] = False
-                    
-        except Exception as e:
-            logger.error(f"Batch LLM validation error: {e}")
-            for item, product_name in uncached_pairs:
-                results[(item, product_name)] = False
-        
-        return results
-
-    def infer_metadata(self, user_query: str):
-        """Generate metadata for Redis storage"""
-        try:
-            prompt = f'''Analyze this query and extract metadata.
-
-Query: "{user_query}"
-
-Response format (JSON only):
-{{
-  "dishbased": ["dish_name"],
-  "cuisinebased": ["cuisine_type"],
-  "dietarypreferences": ["Vegan", "Vegetarian", "Non-Vegetarian"],
-  "timebased": ["breakfast", "lunch", "dinner", "snack"]
-}}
-
-Respond with ONLY the JSON structure above:'''
-            
-            response = self.llm.invoke(prompt)
-            result = self._extract_json_from_response(response.content)
-            
-            return {
-                "dishbased": result.get("dishbased", ["general"]),
-                "cuisinebased": result.get("cuisinebased", ["international"]),
-                "dietarypreferences": result.get("dietarypreferences", ["mixed"]),
-                "timebased": result.get("timebased", ["general"])
-            }
-            
-        except Exception as e:
-            logger.error(f"Error inferring metadata: {e}")
-            return {
-                "dishbased": ["general"],
-                "cuisinebased": ["international"],
-                "dietarypreferences": ["mixed"],
-                "timebased": ["general"]
-            }
-
-# Global instance
-core_matcher = CoreMatcher()
+# Global optimized instance
+core_matcher = OptimizedCoreMatcher()
