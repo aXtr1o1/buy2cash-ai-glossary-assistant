@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="0" skipped="0" tests="1" time="4.450" timestamp="2025-08-23T19:29:23.230333+05:30" hostname="vineesh"><testcase classname="" name="load_test" time="0.000"><error message="collection failure">load_test.py:23: in &lt;module&gt;
+    STORE_ID = get_valid_store_id()
+               ^^^^^^^^^^^^^^^^^^^^
+load_test.py:21: in get_valid_store_id
+    raise RuntimeError("No valid store_id found or could not create one")
+E   RuntimeError: No valid store_id found or could not create one</error></testcase></testsuite></testsuites>

@@ -1,0 +1,29 @@
+PS Y:\Buy2Cash\buy2cash-ai-glossary-assistant\tests> python run_all_tests.py
+>> 
+Running unit, integration, system, and regression tests...
+
+C:\Users\vinee\AppData\Local\Programs\Python\Python312\Lib\site-packages\dash\dash.py:22: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import get_distribution, parse_version
+========================= test session starts ==========================
+platform win32 -- Python 3.12.3, pytest-8.4.1, pluggy-1.6.0 -- C:\Users\vinee\AppData\Local\Programs\Python\Python312\python.exe
+cachedir: .pytest_cache
+rootdir: Y:\Buy2Cash\buy2cash-ai-glossary-assistant\tests
+plugins: anyio-3.7.1, dash-2.9.3, Faker-25.9.2, asyncio-1.1.0
+asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 9 items                                                       
+
+unit_test.py::test_get_categories PASSED                          [ 11%]
+unit_test.py::test_get_sellers PASSED                             [ 22%]
+unit_test.py::test_health_check PASSED                            [ 33%]
+integration_test.py::test_product_matching_briyani PASSED         [ 44%]
+integration_test.py::test_product_matching_pasta PASSED           [ 55%]
+integration_test.py::test_redis_user_history PASSED               [ 66%]
+system_test.py::test_full_user_flow PASSED                        [ 77%]
+regression_test.py::test_invalid_store_id PASSED                  [ 88%]
+regression_test.py::test_missing_query PASSED                     [100%]
+
+- generated xml file: Y:\Buy2Cash\buy2cash-ai-glossary-assistant\tests\results\pytest_results.xml -
+===================== 9 passed in 76.05s (0:01:16) ===================== 
+Running load tests with Locust (headless mode)...
+
+PS Y:\Buy2Cash\buy2cash-ai-glossary-assistant\tests> 
