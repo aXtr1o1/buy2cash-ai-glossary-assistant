@@ -87,6 +87,68 @@ uvicorn main:app --reload
 
 The application will be available at `http://localhost:8000`
 
+## Docker Deployment
+
+### Prerequisites for Docker
+- Docker installed on your system
+- Docker Desktop running (for Windows/Mac)
+
+### Using Docker (Recommended for Production)
+
+#### 1. Pull and Run (if image is available on registry)
+```bash
+# Pull the Docker image from registry
+docker pull buy2cash-ai-grocery-assistant
+
+# Run the container with environment file
+docker run -p 8000:8000 --env-file config.env buy2cash-ai-grocery-assistant
+```
+
+#### 2. Build and Run Locally
+```bash
+# Build the Docker image
+docker build -t buy2cash-ai-grocery-assistant .
+
+# Run the container
+docker run -p 8000:8000 --env-file config.env buy2cash-ai-grocery-assistant
+```
+
+#### 3. Run in Background (Detached Mode)
+```bash
+# Run container in background
+docker run -d -p 8000:8000 --env-file config.env --name grocery-assistant buy2cash-ai-grocery-assistant
+
+# View logs
+docker logs grocery-assistant
+
+# Stop the container
+docker stop grocery-assistant
+```
+
+### Docker Environment Setup
+
+Ensure your `config.env` file contains the correct Redis URL format:
+```env
+# Redis server connection string (required format for Docker)
+REDIS_URL=redis://host.docker.internal:6379/0
+
+# For Linux Docker hosts, use:
+# REDIS_URL=redis://172.17.0.1:6379/0
+```
+
+### Access the Application
+Once the Docker container is running:
+- **API Base URL**: `http://localhost:8000`
+- **Interactive API Docs**: `http://localhost:8000/docs`
+- **Alternative Docs**: `http://localhost:8000/redoc`
+- **Health Check**: `http://localhost:8000/health`
+
+### Docker Best Practices
+- The application runs on port 8000 inside the container
+- Environment variables are loaded from `config.env` at runtime
+- Container includes all dependencies and is ready for production deployment
+- Use `-d` flag for background execution in production environments
+
 ## API Endpoints
 
 ### System Health
