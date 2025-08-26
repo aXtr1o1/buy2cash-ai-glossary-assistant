@@ -77,4 +77,4 @@ class RedisStoreData(BaseModel):
 class UserQueriesResponse(BaseModel):
     queries: List[RedisStoreData]
 
-logger.info("Enhanced schemas loaded successfully")
+logger.info("schemas loaded successfully")

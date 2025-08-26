@@ -16,16 +16,16 @@ SIMILARITY_CACHE_TTL = 86400
 
 try:
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-    logger.info(f"Connecting to Redis with enhanced caching: {redis_url}")
+    logger.info(f"Connecting to Redis with caching: {redis_url}")
     r = redis.StrictRedis.from_url(redis_url, decode_responses=True)
     r.ping()
-    logger.info("Enhanced Redis connection established successfully")
+    logger.info("Redis connection established successfully")
 except Exception as e:
     logger.error(f"Redis connection failed: {e}")
     r = None
 
 def save_user_query_to_redis(user_id: str, data: dict) -> bool:
-    """Save user query data to Redis with 2-day TTL and intelligent caching."""
+    """Save user query data to Redis"""
     logger.info(f"Saving data to Redis for user: {user_id}")
     if not r:
         logger.error("Redis not available - skipping save")
@@ -63,7 +63,7 @@ def save_user_query_to_redis(user_id: str, data: dict) -> bool:
         return False
 
 def get_user_queries_from_redis(user_id: str) -> list:
-    """Get all queries for a user with no manual length constraint."""
+    """Get all queries for a user"""
     logger.info(f"Retrieving queries from Redis for user: {user_id}")
     if not r:
         logger.error("Redis not available")
@@ -143,7 +143,6 @@ def warm_cache_for_user(user_id: str, store_id: str):
         logger.debug(f"Error in cache warming: {e}")
 
 def maintain_cache():
-    """NO query history length limit enforced here!"""
     if not r:
         return
     try:
@@ -167,4 +166,4 @@ def get_cache_stats():
         logger.error(f"Error getting cache stats: {e}")
         return {}
 
-logger.info("Enhanced Redis cache module loaded with 2-day TTL and NO manual length limit")
+logger.info("Redis cache module loaded successfully")

@@ -21,7 +21,7 @@ load_dotenv(dotenv_path="config.env")
 
 class OptimizedCoreMatcher:
     def __init__(self):
-        logger.info("Initializing OptimizedCoreMatcher with advanced caching and parallel processing")
+        logger.info("Initializing CoreMatcher with advanced caching")
         self.llm = None
         self.validation_llm = None
         self.llm_cache = {}
@@ -31,7 +31,7 @@ class OptimizedCoreMatcher:
         self.cache_lock = threading.Lock()
         self.executor = ThreadPoolExecutor(max_workers=6)
         self._init_llm()
-        logger.info("OptimizedCoreMatcher initialized successfully with parallel processing")
+        logger.info("CoreMatcher initialized successfully")
 
     def _init_llm(self):
         """Initialize OpenAI LLM with optimized settings"""
@@ -54,15 +54,14 @@ class OptimizedCoreMatcher:
                 max_retries=2,
                 request_timeout=20
             )
-            logger.info("Optimized OpenAI LLM initialized successfully")
+            logger.info("OpenAI LLM initialized successfully")
         except Exception as e:
             logger.error(f"Error initializing LLM: {e}")
             raise ValueError(f"Failed to initialize LLM: {e}")
 
     async def generate_ingredients_and_match_products_async(self, user_query: str, store_id: str):
         """
-        MAIN OPTIMIZATION: Fully async product matching with parallel processing
-        Target: 8-12 seconds from 32 seconds
+        Fully async product matching with parallel processing
         """
         start_time = time.time()
         logger.info(f"Starting ASYNC processing: '{user_query[:50]}...' for store: {store_id}")
@@ -121,7 +120,7 @@ class OptimizedCoreMatcher:
         }
 
     async def _process_category_parallel(self, category_data: dict, available_categories: list, store_id: str, user_query: str):
-        """Process single category with all optimizations"""
+        """Process single category"""
         try:
             category_name = category_data.get("category", "").strip()
             items = category_data.get("items", [])
@@ -178,7 +177,7 @@ class OptimizedCoreMatcher:
             return None
 
     async def _generate_ingredients_llm_async(self, user_query: str, available_categories: list):
-        """ENHANCED: Async LLM generation with comprehensive supermarket coverage"""
+        """Async LLM generation with comprehensive supermarket coverage"""
         try:
             category_list = "\n".join([f'- {cat["name"]}' for cat in available_categories])
             prompt = f'''You are a comprehensive SuperMarket expert with deep knowledge of ALL supermarket departments and items.
@@ -207,7 +206,8 @@ Response format (JSON only):
 }}
 
 IMPORTANT: Use ONLY category names exactly as listed above. Consider ALL possible supermarket items that would enhance the user's experience.
-
+If he asked an specific product (e.g., "olive oil"), include related items (e.g., "vinegar", "salad dressing", "marinade") in the same or related categories.
+Sometimes, user will ask like with the specific product name (e.g., "Achi sambar masala") and return that specific product in the relevant category.
 Respond with ONLY the JSON structure above:'''
 
             loop = asyncio.get_event_loop()

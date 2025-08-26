@@ -12,7 +12,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 app = FastAPI(
-    title="Buy2Cash Optimized Grocery AI Assistant",
+    title="Buy2Cash AI Grocery Assistant",
     version="1.0.0",
     description="Glrocery product matching with AI"
 )
@@ -25,17 +25,16 @@ async def health_check():
     return {
         "status": "healthy",
         "version": "1.0.0",
-        "optimizations": [
+        "Features": [
             "async_processing",
             "parallel_matching", 
-            "2_day_cache",
-            "enhanced_prompts"
+            "2_day_cache"
         ]
     }
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Buy2Cash Optimized Grocery AI Assistant started successfully")
+    logger.info("Buy2Cash Grocery AI Assistant started successfully")
 
 @app.on_event("shutdown")
 async def shutdown_event():

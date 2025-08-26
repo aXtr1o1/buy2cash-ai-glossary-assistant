@@ -105,7 +105,7 @@ def get_categories_by_store(store_id: str):
         return []
 
 def get_optimized_products_for_matching(category_name: str, store_id: str):
-    """Enhanced database query to fetch products optimized for fuzzy matching"""
+    """database query to fetch products for fuzzy matching"""
     try:
         store_oid = ObjectId(store_id)
         category = db.categories.find_one({"name": category_name})
@@ -155,7 +155,7 @@ def get_optimized_products_for_matching(category_name: str, store_id: str):
         return []
 
 def get_products_by_category_and_store(category_name: str, store_id: str):
-    """Legacy function - now uses optimized approach"""
+    """Legacy function"""
     return get_optimized_products_for_matching(category_name, store_id)
 
 def get_store_by_id(store_id: str):

@@ -1,7 +1,3 @@
-"""
-Guardrails and validation logic for the grocery assistant
-"""
-
 import re
 from typing import List, Dict, Any, Tuple
 import logging

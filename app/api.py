@@ -49,11 +49,10 @@ async def get_sellers():
 @router.post("/ProductMatching", response_model=ProductMatchingResponse)
 async def product_matching(request: ProductMatchingRequest, background_tasks: BackgroundTasks):
     """
-    OPTIMIZED ProductMatching endpoint with async processing
-    Target: Reduce from 32s to 8-12s
+    ProductMatching endpoint with async processing
     """
     start_time = time.time()
-    logger.info(f"OPTIMIZED ProductMatching called for user: {request.user_id}, store: {request.store_id}")
+    logger.info(f"ProductMatching called for user: {request.user_id}, store: {request.store_id}")
     valid_query, query_msg = validation_rails.validate_query(request.query)
     if not valid_query:
         raise HTTPException(status_code=400, detail=query_msg)
@@ -105,12 +104,12 @@ async def product_matching(request: ProductMatchingRequest, background_tasks: Ba
 
         end_time = time.time()
         processing_time = end_time - start_time
-        logger.info(f"OPTIMIZED processing completed in {processing_time:.2f}s - Generated: {len(all_generated_categories)}, Matched: {len(sanitized_results)}")
+        logger.info(f"processing completed in {processing_time:.2f}s - Generated: {len(all_generated_categories)}, Matched: {len(sanitized_results)}")
         
         return response
 
     except Exception as e:
-        logger.error(f"Error in optimized product matching: {e}")
+        logger.error(f"Error in product matching: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/redis/{user_id}", response_model=UserQueriesResponse)
