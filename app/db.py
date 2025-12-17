@@ -4,15 +4,15 @@ from bson.objectid import ObjectId
 import os
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path="config.env")
+load_dotenv(override=True)
 
 logger = logging.getLogger(__name__)
-MONGO_URI = os.getenv("MONGO_URI")
-DB_NAME = os.getenv("MONGO_DB_NAME")
+MONGO_URI = os.getenv("MONGODB_URI")
+DB_NAME = os.getenv("MONGODB_DB")
 if not MONGO_URI:
-    raise ValueError("MONGO_URI not found in config.env file")
+    raise ValueError("MONGO_URI not found in file")
 if not DB_NAME:
-    raise ValueError("MONGO_DB_NAME not found in config.env file")
+    raise ValueError("MONGODB_NAME not found in file")
 
 logger.info(f"Using MONGO_URI: {MONGO_URI}")
 logger.info(f"Using DB_NAME: {DB_NAME}")

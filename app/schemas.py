@@ -62,19 +62,19 @@ class ProductMatchingResponse(BaseModel):
     timestamp: str
     matched_products: List[CategoryProductMatch]
 
-class RedisStoreData(BaseModel):
-    user_id: str
-    store_id: str
-    query: str
-    timestamp: str
-    all_generated_categories: List[IngredientCategory] = Field(default_factory=list) 
-    matched_products: List[CategoryProductMatch]  
-    dishbased: List[str] = Field(default_factory=list)
-    cuisinebased: List[str] = Field(default_factory=list)
-    dietarypreferences: List[str] = Field(default_factory=list)
-    timebased: List[str] = Field(default_factory=list)
+# class RedisStoreData(BaseModel):
+#     user_id: str
+#     store_id: str
+#     query: str
+#     timestamp: str
+#     all_generated_categories: List[IngredientCategory] = Field(default_factory=list) 
+#     matched_products: List[CategoryProductMatch]  
+#     dishbased: List[str] = Field(default_factory=list)
+#     cuisinebased: List[str] = Field(default_factory=list)
+#     dietarypreferences: List[str] = Field(default_factory=list)
+#     timebased: List[str] = Field(default_factory=list)
 
-class UserQueriesResponse(BaseModel):
-    queries: List[RedisStoreData]
+# class UserQueriesResponse(BaseModel):
+#     queries: List[RedisStoreData]
 
 logger.info("schemas loaded successfully")

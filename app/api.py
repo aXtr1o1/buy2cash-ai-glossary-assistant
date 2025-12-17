@@ -3,19 +3,18 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.concurrency import run_in_threadpool
 from app.core_matcher import core_matcher
-from app.redis_cache import save_user_query_to_redis, get_user_queries_from_redis
+# from app.redis_cache import save_user_query_to_redis, get_user_queries_from_redis
 from app.db import get_all_categories, get_all_sellers, get_store_by_id
 from app.schemas import (
     ProductMatchingRequest,
     ProductMatchingResponse,
     Category,
     Seller,
-    UserQueriesResponse,
-    RedisStoreData,
-    IngredientCategory
+    # UserQueriesResponse,
+    # RedisStoreData
 )
 from app.rails import validation_rails
-from app.background_tasks import warm_cache_for_user_background
+# from app.background_tasks import warm_cache_for_user_background
 from typing import List
 import time
 
@@ -79,20 +78,20 @@ async def product_matching(request: ProductMatchingRequest, background_tasks: Ba
         all_generated_categories = result.get("all_generated_categories", [])
         matched_products = result.get("matched_products", [])
         sanitized_results = await run_in_threadpool(validation_rails.sanitize_product_results, matched_products)
-        metadata = await core_matcher.infer_metadata_async(request.query)
+        # metadata = await core_matcher.infer_metadata_async(request.query)
         
         current_timestamp = datetime.now().isoformat()
-        redis_data = RedisStoreData(
-            user_id=request.user_id,
-            store_id=request.store_id,
-            query=request.query,
-            timestamp=current_timestamp,
-            all_generated_categories=all_generated_categories,  
-            matched_products=sanitized_results, 
-            **metadata
-        )
-        background_tasks.add_task(save_user_query_to_redis, request.user_id, redis_data.model_dump())
-        background_tasks.add_task(warm_cache_for_user_background, request.user_id, request.store_id)
+        # redis_data = RedisStoreData(
+        #     user_id=request.user_id,
+        #     store_id=request.store_id,
+        #     query=request.query,
+        #     timestamp=current_timestamp,
+        #     all_generated_categories=all_generated_categories,  
+        #     matched_products=sanitized_results, 
+        #     **metadata
+        # )
+        # background_tasks.add_task(save_user_query_to_redis, request.user_id, redis_data.model_dump())
+        # background_tasks.add_task(warm_cache_for_user_background, request.user_id, request.store_id)
         
         response = ProductMatchingResponse(
             query=request.query,
@@ -112,19 +111,19 @@ async def product_matching(request: ProductMatchingRequest, background_tasks: Ba
         logger.error(f"Error in product matching: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/redis/{user_id}", response_model=UserQueriesResponse)
-async def get_user_queries(user_id: str):
-    """Get user search history from Redis"""
-    logger.info(f"GET /redis/{user_id} endpoint called")
+# @router.get("/redis/{user_id}", response_model=UserQueriesResponse)
+# async def get_user_queries(user_id: str):
+#     """Get user search history from Redis"""
+#     logger.info(f"GET /redis/{user_id} endpoint called")
     
-    valid_uid, uid_msg = validation_rails.validate_user_id(user_id)
-    if not valid_uid:
-        raise HTTPException(status_code=400, detail=uid_msg)
+#     valid_uid, uid_msg = validation_rails.validate_user_id(user_id)
+#     if not valid_uid:
+#         raise HTTPException(status_code=400, detail=uid_msg)
     
-    try:
-        queries = await run_in_threadpool(get_user_queries_from_redis, user_id)
-        return {"queries": queries if queries else []}
+#     try:
+#         queries = await run_in_threadpool(get_user_queries_from_redis, user_id)
+#         return {"queries": queries if queries else []}
         
-    except Exception as e:
-        logger.error(f"Error retrieving user queries: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+#     except Exception as e:
+#         logger.error(f"Error retrieving user queries: {e}")
+#         raise HTTPException(status_code=500, detail=str(e))

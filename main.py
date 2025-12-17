@@ -28,7 +28,6 @@ async def health_check():
         "Features": [
             "async_processing",
             "parallel_matching", 
-            "2_day_cache"
         ]
     }
 
