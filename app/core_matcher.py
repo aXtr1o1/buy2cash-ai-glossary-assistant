@@ -193,7 +193,7 @@ class OptimizedCoreMatcher:
 
                         COMPREHENSIVE ANALYSIS REQUIRED:
                         - Consider the complete shopping experience for this request
-                        - Include preparation tools, storage items, cleaning supplies if relevant  
+                        - Include preparation tools, storage items, supplies if relevant  
                         - Think about complementary items and alternatives
                         - Consider dietary restrictions, cultural preferences, seasonal availability
                         - Include both essential and optional items for the best experience
@@ -212,6 +212,7 @@ class OptimizedCoreMatcher:
                         IMPORTANT: Use ONLY category names exactly as listed above. Consider ALL possible supermarket items that would enhance the user's experience.
                         If user asked for a specific product (e.g., "olive oil"), include related items (e.g., "vinegar", "salad dressing") in the same or related categories.
                         If user mentions a specific brand/product name (e.g., "Achi sambar masala"), include that EXACT product name in the relevant category.
+                        If user asked about dish or cooking items you only needs to show the related items not Household Cleaning or Baby Care unless he specifically asks for them.
                         If user requests a dish (e.g., "biryani"), include all ingredients, spices, and accompaniments needed for that dish, Don't include unrelated items(eg. Tea, Coffee & Beverages or Some irrelvent mixs).
                         Respond with ONLY the JSON structure above:'''
 
